@@ -296,20 +296,61 @@ app.get('/api/recommendations', async (req, res) => {
         const data = await scrapecreators('/v1/tiktok/shop/search', { query: category });
         const items = data.products || data.data || [];
 
+        // Debug: Log first item structure
+        if (items.length > 0) {
+          console.log(`📦 Sample item keys for ${category}:`, Object.keys(items[0]));
+          console.log(`💰 Price info:`, items[0].product_price_info);
+          console.log(`📊 Sold info:`, items[0].sold_info);
+        }
+
         // Process items
-        const processed = items.slice(0, 8).map(item => ({
-          title: item.product_name || item.title || 'No title',
-          image: item.product_img_url || item.cover || '',
-          views: item.statistics?.play_count || 0,
-          likes: item.statistics?.digg_count || 0,
-          sold: item.sold_count || item.sales || 0,
-          price: item.price ? (item.price / 100) : (item.min_price ? parseFloat(item.min_price) : 0),
-          engagement: item.statistics?.play_count > 0
-            ? ((item.statistics?.digg_count || 0) / item.statistics?.play_count * 100).toFixed(2)
-            : 0,
-          category: category,
-          rawData: item
-        }));
+        const processed = items.slice(0, 8).map(item => {
+          // Extract price from nested structure
+          let price = 0;
+          if (item.product_price_info) {
+            // Price is in sale_price_decimal or sale_price_format
+            const priceStr = item.product_price_info.sale_price_decimal ||
+                           item.product_price_info.sale_price_format ||
+                           item.product_price_info.min_price ||
+                           item.product_price_info.price || '0';
+
+            // Remove formatting (dots/commas) and convert to number
+            const priceNum = parseFloat(priceStr.replace(/[.,]/g, ''));
+
+            // Convert from VND to USD (approximate: 1 USD = 25,000 VND)
+            if (item.product_price_info.currency_name === 'VND') {
+              price = priceNum / 25000;
+            } else {
+              price = priceNum;
+            }
+          } else if (item.price) {
+            price = item.price / 100;
+          } else if (item.min_price) {
+            price = parseFloat(item.min_price);
+          }
+
+          // Extract sold count
+          let sold = 0;
+          if (item.sold_info) {
+            sold = parseInt(item.sold_info.sold_count || item.sold_info.sales || 0);
+          } else {
+            sold = item.sold_count || item.sales || 0;
+          }
+
+          return {
+            title: item.product_name || item.title || 'No title',
+            image: item.product_img_url || item.image || item.cover || '',
+            views: item.statistics?.play_count || item.rate_info?.view_count || 0,
+            likes: item.statistics?.digg_count || item.rate_info?.like_count || 0,
+            sold: sold,
+            price: price,
+            engagement: item.statistics?.play_count > 0
+              ? ((item.statistics?.digg_count || 0) / item.statistics?.play_count * 100).toFixed(2)
+              : 0,
+            category: category,
+            rawData: item
+          };
+        });
 
         allProducts.push(...processed);
       } catch (e) {
@@ -326,11 +367,20 @@ app.get('/api/recommendations', async (req, res) => {
 
     console.log(`✅ Found ${allProducts.length} products`);
 
+    // Debug: Log price data
+    console.log('📊 Sample product prices:', allProducts.slice(0, 3).map(p => ({
+      title: p.title.substring(0, 30),
+      price: p.price,
+      sold: p.sold
+    })));
+
     // Filter products with price and sales data
     const validProducts = allProducts
       .filter(p => p.price > 0 && p.price < 200) // Reasonable price range
       .sort((a, b) => (b.views + b.likes + b.sold) - (a.views + a.likes + a.sold))
       .slice(0, 20);
+
+    console.log(`✅ ${validProducts.length} products after filtering (price > 0 && price < 200)`);
 
     // Add margins and sourcing to each product
     const productsWithAnalysis = validProducts.map(p => ({
