@@ -3,104 +3,361 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Product Trends</title>
+  <title>Product Trends - Advanced Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+  <style>
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .animate-slide-in {
+      animation: slideIn 0.3s ease-out;
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.2s ease-out;
+    }
+    .glass {
+      background: rgba(17, 24, 39, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(55, 65, 81, 0.3);
+    }
+    .glass-light {
+      background: rgba(31, 41, 55, 0.5);
+      backdrop-filter: blur(8px);
+    }
+    .card-hover {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .card-hover:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #1f2937 25%, #374151 50%, #1f2937 75%);
+      background-size: 200% 100%;
+      animation: loading 1.5s infinite;
+    }
+    @keyframes loading {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .tooltip {
+      position: relative;
+    }
+    .tooltip:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 0.5rem;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      border-radius: 0.375rem;
+      font-size: 0.75rem;
+      white-space: nowrap;
+      z-index: 50;
+      margin-bottom: 0.5rem;
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3b82f6',
+            secondary: '#8b5cf6',
+          }
+        }
+      }
+    }
+  </script>
 </head>
-<body class="bg-gray-900 text-white min-h-screen">
-  <div id="app" class="max-w-6xl mx-auto p-4">
+<body class="bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 text-white min-h-screen">
+  <div id="app" class="max-w-7xl mx-auto p-4 lg:p-6">
 
     <!-- Header -->
-    <header class="flex justify-between items-center py-4 mb-6 border-b border-gray-800">
-      <h1 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
-        Product Trends
-      </h1>
-      <div class="flex items-center gap-4">
-        <span id="credits" class="text-sm text-gray-400"></span>
-        <button onclick="openSettings()" class="hover:bg-gray-800 p-2 rounded-lg">⚙️</button>
+    <header class="glass rounded-2xl p-6 mb-6 animate-slide-in">
+      <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div>
+          <h1 class="text-3xl lg:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 mb-2">
+            Product Trends Pro
+          </h1>
+          <p class="text-gray-400 text-sm">Advanced dropshipping intelligence platform</p>
+        </div>
+        <div class="flex items-center gap-4 flex-wrap">
+          <div id="statsBar" class="flex items-center gap-4 text-sm">
+            <div class="glass-light px-4 py-2 rounded-lg">
+              <span class="text-gray-400">Credits:</span>
+              <span id="credits" class="ml-2 font-bold text-blue-400">--</span>
+            </div>
+            <div class="glass-light px-4 py-2 rounded-lg">
+              <span class="text-gray-400">Results:</span>
+              <span id="resultCount" class="ml-2 font-bold text-green-400">0</span>
+            </div>
+          </div>
+          <button onclick="toggleStats()" class="glass-light hover:bg-gray-700 p-3 rounded-lg transition tooltip" data-tooltip="Analytics">
+            📊
+          </button>
+          <button onclick="toggleSaved()" class="glass-light hover:bg-gray-700 p-3 rounded-lg transition tooltip" data-tooltip="Saved Searches">
+            ⭐
+          </button>
+          <button onclick="openSettings()" class="glass-light hover:bg-gray-700 p-3 rounded-lg transition tooltip" data-tooltip="Settings">
+            ⚙️
+          </button>
+        </div>
       </div>
     </header>
 
-    <!-- Tabs -->
-    <div class="flex gap-2 mb-4 flex-wrap">
-      <button onclick="setTab('tiktok')" data-tab="tiktok" class="tab-btn px-4 py-2 rounded-lg bg-blue-600">🎵 TikTok</button>
-      <button onclick="setTab('shop')" data-tab="shop" class="tab-btn px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700">🛒 TikTok Shop</button>
-      <button onclick="setTab('instagram')" data-tab="instagram" class="tab-btn px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700">📸 Instagram</button>
+    <!-- Analytics Panel (collapsible) -->
+    <div id="analyticsPanel" class="hidden glass rounded-2xl p-6 mb-6 animate-slide-in">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold">Analytics Dashboard</h2>
+        <button onclick="toggleStats()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="glass-light rounded-xl p-4">
+          <div class="text-gray-400 text-sm mb-1">Total Searches</div>
+          <div class="text-3xl font-bold text-blue-400" id="totalSearches">0</div>
+        </div>
+        <div class="glass-light rounded-xl p-4">
+          <div class="text-gray-400 text-sm mb-1">Total Views</div>
+          <div class="text-3xl font-bold text-purple-400" id="totalViews">0</div>
+        </div>
+        <div class="glass-light rounded-xl p-4">
+          <div class="text-gray-400 text-sm mb-1">Avg Engagement</div>
+          <div class="text-3xl font-bold text-green-400" id="avgEngagement">0%</div>
+        </div>
+        <div class="glass-light rounded-xl p-4">
+          <div class="text-gray-400 text-sm mb-1">Top Platform</div>
+          <div class="text-3xl font-bold text-pink-400" id="topPlatform">--</div>
+        </div>
+      </div>
+      <div class="glass-light rounded-xl p-4">
+        <canvas id="engagementChart" height="80"></canvas>
+      </div>
     </div>
 
-    <!-- Search -->
-    <div class="flex gap-2 mb-6">
-      <input
-        type="text"
-        id="search"
-        placeholder="Search products, trends, keywords..."
-        class="flex-1 bg-gray-800 px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        onkeypress="if(event.key==='Enter')doSearch()"
-      >
-      <button onclick="doSearch()" class="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-lg font-medium">
-        Search
-      </button>
+    <!-- Saved Searches Panel -->
+    <div id="savedPanel" class="hidden glass rounded-2xl p-6 mb-6 animate-slide-in">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-2xl font-bold">Saved Searches</h2>
+        <button onclick="toggleSaved()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+      </div>
+      <div id="savedList" class="space-y-2">
+        <p class="text-gray-500 text-center py-8">No saved searches yet</p>
+      </div>
     </div>
 
-    <!-- Error -->
-    <div id="error" class="hidden bg-red-900/50 border border-red-500 text-red-300 p-4 rounded-lg mb-4"></div>
+    <!-- Main Control Panel -->
+    <div class="glass rounded-2xl p-6 mb-6 animate-slide-in">
+      <!-- Tabs -->
+      <div class="flex gap-2 mb-6 flex-wrap">
+        <button onclick="setTab('tiktok')" data-tab="tiktok" class="tab-btn px-6 py-3 rounded-xl font-medium transition bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg">
+          🎵 TikTok Videos
+        </button>
+        <button onclick="setTab('shop')" data-tab="shop" class="tab-btn px-6 py-3 rounded-xl font-medium transition glass-light hover:bg-gray-700">
+          🛒 TikTok Shop
+        </button>
+        <button onclick="setTab('instagram')" data-tab="instagram" class="tab-btn px-6 py-3 rounded-xl font-medium transition glass-light hover:bg-gray-700">
+          📸 Instagram Reels
+        </button>
+      </div>
 
-    <!-- Loading -->
-    <div id="loading" class="hidden text-center py-20">
-      <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-      <p class="mt-4 text-gray-400">Loading...</p>
+      <!-- Search Bar -->
+      <div class="flex gap-3 mb-6">
+        <div class="flex-1 relative">
+          <input
+            type="text"
+            id="search"
+            placeholder="Search products, trends, viral content..."
+            class="w-full glass-light px-6 py-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition text-lg"
+            onkeypress="if(event.key==='Enter')doSearch()"
+          >
+          <div class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">
+            🔍
+          </div>
+        </div>
+        <button onclick="doSearch()" class="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 px-8 py-4 rounded-xl font-medium shadow-lg transition transform hover:scale-105">
+          Search
+        </button>
+        <button onclick="saveCurrentSearch()" class="glass-light hover:bg-gray-700 px-6 py-4 rounded-xl transition tooltip" data-tooltip="Save Search">
+          ⭐
+        </button>
+      </div>
+
+      <!-- Filters & Sort -->
+      <div class="flex gap-3 flex-wrap items-center">
+        <label class="text-sm text-gray-400">Sort by:</label>
+        <select id="sortBy" onchange="applyFilters()" class="glass-light px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="default">Default</option>
+          <option value="views-desc">Most Views</option>
+          <option value="views-asc">Least Views</option>
+          <option value="likes-desc">Most Likes</option>
+          <option value="engagement-desc">Best Engagement</option>
+          <option value="price-desc">Price: High to Low</option>
+          <option value="price-asc">Price: Low to High</option>
+        </select>
+
+        <label class="text-sm text-gray-400 ml-4">Min Views:</label>
+        <input type="number" id="minViews" placeholder="0" onchange="applyFilters()" class="glass-light px-4 py-2 rounded-lg w-32 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+        <label class="text-sm text-gray-400">Max Price:</label>
+        <input type="number" id="maxPrice" placeholder="No limit" onchange="applyFilters()" class="glass-light px-4 py-2 rounded-lg w-32 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+        <button onclick="toggleComparison()" id="compareBtn" class="ml-auto glass-light hover:bg-gray-700 px-4 py-2 rounded-lg text-sm transition">
+          <span id="compareBtnText">Compare Mode</span>
+        </button>
+
+        <button onclick="exportResults()" class="glass-light hover:bg-gray-700 px-4 py-2 rounded-lg text-sm transition">
+          📥 Export
+        </button>
+
+        <button onclick="clearFilters()" class="text-blue-400 hover:text-blue-300 text-sm px-4 py-2">
+          Clear Filters
+        </button>
+      </div>
+    </div>
+
+    <!-- Comparison Panel -->
+    <div id="comparisonPanel" class="hidden glass rounded-2xl p-6 mb-6 animate-slide-in">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold">Product Comparison</h2>
+        <button onclick="clearComparison()" class="text-sm text-blue-400 hover:text-blue-300">Clear All</button>
+      </div>
+      <div id="comparisonGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <p class="text-gray-500 text-center py-8 col-span-full">Select items to compare</p>
+      </div>
+    </div>
+
+    <!-- Error Messages -->
+    <div id="error" class="hidden glass border-2 border-red-500 text-red-300 p-6 rounded-2xl mb-6 animate-slide-in">
+      <div class="flex items-start gap-3">
+        <span class="text-2xl">⚠️</span>
+        <div class="flex-1">
+          <div class="font-bold mb-1">Error</div>
+          <div id="errorText"></div>
+        </div>
+        <button onclick="hide('error')" class="text-gray-400 hover:text-white">&times;</button>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loading" class="hidden">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        ${Array(8).fill(0).map(() => `
+          <div class="glass rounded-2xl overflow-hidden">
+            <div class="skeleton h-48"></div>
+            <div class="p-4 space-y-3">
+              <div class="skeleton h-4 rounded"></div>
+              <div class="skeleton h-4 w-2/3 rounded"></div>
+              <div class="flex gap-2">
+                <div class="skeleton h-6 w-16 rounded-full"></div>
+                <div class="skeleton h-6 w-16 rounded-full"></div>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
     </div>
 
     <!-- Results Grid -->
-    <div id="results" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+    <div id="results" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
 
     <!-- Empty State -->
-    <div id="empty" class="text-center py-20 text-gray-500">
-      <p class="text-5xl mb-4">🔍</p>
-      <p>Enter a keyword to search for trending products</p>
+    <div id="empty" class="text-center py-20">
+      <div class="glass rounded-3xl p-12 inline-block">
+        <p class="text-7xl mb-6">🔍</p>
+        <h3 class="text-2xl font-bold mb-2">Discover Trending Products</h3>
+        <p class="text-gray-400">Enter a keyword to find viral products and content</p>
+      </div>
     </div>
 
-    <!-- Debug Log -->
-    <details class="mt-8">
-      <summary class="text-gray-500 text-sm cursor-pointer">Debug Log</summary>
-      <pre id="log" class="mt-2 bg-gray-800 p-4 rounded-lg text-xs text-gray-400 max-h-40 overflow-auto"></pre>
-    </details>
   </div>
 
   <!-- Settings Modal -->
-  <div id="modal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-    <div class="bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold">Settings</h2>
-        <button onclick="closeSettings()" class="text-2xl hover:text-gray-400">&times;</button>
+  <div id="modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+    <div class="glass rounded-2xl p-8 w-full max-w-md mx-4 animate-slide-in">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold">Settings</h2>
+        <button onclick="closeSettings()" class="text-3xl hover:text-gray-400 leading-none">&times;</button>
       </div>
-      <div class="space-y-4">
+      <div class="space-y-6">
         <div>
-          <label class="block text-sm text-gray-400 mb-1">ScrapeCreators API Key</label>
-          <input type="text" id="apiKey" class="w-full bg-gray-700 px-4 py-2 rounded-lg" placeholder="Your API key">
-          <p class="text-xs text-gray-500 mt-1">Get your key at <a href="https://scrapecreators.com" target="_blank" class="text-blue-400">scrapecreators.com</a></p>
+          <label class="block text-sm text-gray-400 mb-2 font-medium">ScrapeCreators API Key</label>
+          <input type="text" id="apiKey" class="w-full glass-light px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your API key">
+          <p class="text-xs text-gray-500 mt-2">
+            Get your key at <a href="https://scrapecreators.com" target="_blank" class="text-blue-400 hover:text-blue-300">scrapecreators.com</a>
+          </p>
         </div>
         <div id="testResult"></div>
-        <div class="flex gap-2">
-          <button onclick="testKey()" class="flex-1 bg-gray-700 hover:bg-gray-600 py-2 rounded-lg">Test</button>
-          <button onclick="saveKey()" class="flex-1 bg-blue-600 hover:bg-blue-500 py-2 rounded-lg">Save</button>
+        <div class="flex gap-3">
+          <button onclick="testKey()" class="flex-1 glass-light hover:bg-gray-700 py-3 rounded-xl font-medium transition">
+            Test Connection
+          </button>
+          <button onclick="saveKey()" class="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 py-3 rounded-xl font-medium transition">
+            Save
+          </button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Item Detail Modal -->
+  <div id="detailModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" onclick="if(event.target===this) hide('detailModal')">
+    <div class="glass rounded-2xl p-8 w-full max-w-2xl my-8 animate-slide-in" onclick="event.stopPropagation()">
+      <div id="detailContent"></div>
     </div>
   </div>
 
   <script>
-    let currentTab = 'tiktok';
+    // State Management
+    let state = {
+      currentTab: 'tiktok',
+      allResults: [],
+      filteredResults: [],
+      comparisonMode: false,
+      comparisonItems: [],
+      savedSearches: JSON.parse(localStorage.getItem('savedSearches') || '[]'),
+      stats: JSON.parse(localStorage.getItem('stats') || '{"searches": 0, "totalViews": 0, "totalLikes": 0}'),
+      chart: null
+    };
 
     // Logging
     function log(msg) {
       console.log(msg);
-      const el = document.getElementById('log');
-      el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + el.textContent;
     }
 
     // UI helpers
-    function show(id) { document.getElementById(id).classList.remove('hidden'); }
+    function show(id) {
+      const el = document.getElementById(id);
+      el.classList.remove('hidden');
+      el.classList.add('animate-slide-in');
+    }
     function hide(id) { document.getElementById(id).classList.add('hidden'); }
 
     // Settings
@@ -108,10 +365,14 @@
     function closeSettings() { hide('modal'); }
 
     async function loadConfig() {
-      const res = await fetch('/api/config');
-      const data = await res.json();
-      document.getElementById('apiKey').value = data.apiKey || '';
-      if (data.hasKey) log('API key loaded');
+      try {
+        const res = await fetch('/api/config');
+        const data = await res.json();
+        document.getElementById('apiKey').value = data.apiKey || '';
+        if (data.hasKey) log('API key loaded');
+      } catch (e) {
+        log('Config load failed: ' + e.message);
+      }
     }
 
     async function saveKey() {
@@ -126,25 +387,153 @@
     }
 
     async function testKey() {
-      document.getElementById('testResult').innerHTML = '<p class="text-yellow-400">Testing...</p>';
+      const resultEl = document.getElementById('testResult');
+      resultEl.innerHTML = '<p class="text-yellow-400 text-sm">⏳ Testing connection...</p>';
       await saveKey();
-      const res = await fetch('/api/test');
-      const data = await res.json();
-      if (data.success) {
-        document.getElementById('testResult').innerHTML = `<p class="text-green-400">✓ Connected! Credits: ${data.credits}</p>`;
-        document.getElementById('credits').textContent = `Credits: ${data.credits}`;
-      } else {
-        document.getElementById('testResult').innerHTML = `<p class="text-red-400">✗ ${data.error}</p>`;
+
+      try {
+        const res = await fetch('/api/test');
+        const data = await res.json();
+        if (data.success) {
+          resultEl.innerHTML = `<p class="text-green-400 text-sm">✓ Connected! Credits: ${data.credits}</p>`;
+          document.getElementById('credits').textContent = formatNum(data.credits);
+        } else {
+          resultEl.innerHTML = `<p class="text-red-400 text-sm">✗ ${data.error}</p>`;
+        }
+      } catch (e) {
+        resultEl.innerHTML = `<p class="text-red-400 text-sm">✗ Connection failed</p>`;
       }
-      openSettings(); // Reopen after save
+      openSettings();
+    }
+
+    // Analytics
+    function toggleStats() {
+      const panel = document.getElementById('analyticsPanel');
+      if (panel.classList.contains('hidden')) {
+        show('analyticsPanel');
+        updateAnalytics();
+      } else {
+        hide('analyticsPanel');
+      }
+    }
+
+    function updateAnalytics() {
+      document.getElementById('totalSearches').textContent = state.stats.searches || 0;
+      document.getElementById('totalViews').textContent = formatNum(state.stats.totalViews || 0);
+
+      const engagement = state.stats.totalViews > 0
+        ? ((state.stats.totalLikes / state.stats.totalViews) * 100).toFixed(2)
+        : 0;
+      document.getElementById('avgEngagement').textContent = engagement + '%';
+
+      document.getElementById('topPlatform').textContent = state.currentTab.toUpperCase();
+
+      // Chart
+      if (state.chart) state.chart.destroy();
+
+      const ctx = document.getElementById('engagementChart');
+      state.chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['TikTok', 'Shop', 'Instagram'],
+          datasets: [{
+            label: 'Avg Views',
+            data: [state.stats.tiktokViews || 0, state.stats.shopViews || 0, state.stats.instagramViews || 0],
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: '#fff' } }
+          },
+          scales: {
+            y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+            x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+          }
+        }
+      });
+    }
+
+    // Saved Searches
+    function toggleSaved() {
+      const panel = document.getElementById('savedPanel');
+      if (panel.classList.contains('hidden')) {
+        show('savedPanel');
+        renderSavedSearches();
+      } else {
+        hide('savedPanel');
+      }
+    }
+
+    function saveCurrentSearch() {
+      const query = document.getElementById('search').value.trim();
+      if (!query) return;
+
+      const search = {
+        id: Date.now(),
+        query,
+        tab: state.currentTab,
+        date: new Date().toISOString(),
+        resultCount: state.filteredResults.length
+      };
+
+      state.savedSearches.unshift(search);
+      localStorage.setItem('savedSearches', JSON.stringify(state.savedSearches));
+
+      showNotification('Search saved!');
+    }
+
+    function renderSavedSearches() {
+      const container = document.getElementById('savedList');
+      if (state.savedSearches.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-8">No saved searches yet</p>';
+        return;
+      }
+
+      container.innerHTML = state.savedSearches.map(s => `
+        <div class="glass-light rounded-xl p-4 flex items-center justify-between hover:bg-gray-700 transition">
+          <div class="flex-1">
+            <div class="font-medium">${escapeHtml(s.query)}</div>
+            <div class="text-xs text-gray-400">
+              ${s.tab.toUpperCase()} • ${new Date(s.date).toLocaleDateString()} • ${s.resultCount} results
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button onclick='loadSavedSearch(${JSON.stringify(s).replace(/'/g, "&apos;")})' class="text-blue-400 hover:text-blue-300 px-3 py-1 rounded text-sm">
+              Load
+            </button>
+            <button onclick="deleteSavedSearch(${s.id})" class="text-red-400 hover:text-red-300 px-3 py-1 rounded text-sm">
+              Delete
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function loadSavedSearch(search) {
+      document.getElementById('search').value = search.query;
+      setTab(search.tab);
+      hide('savedPanel');
+      doSearch();
+    }
+
+    function deleteSavedSearch(id) {
+      state.savedSearches = state.savedSearches.filter(s => s.id !== id);
+      localStorage.setItem('savedSearches', JSON.stringify(state.savedSearches));
+      renderSavedSearches();
     }
 
     // Tabs
     function setTab(tab) {
-      currentTab = tab;
+      state.currentTab = tab;
       document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.toggle('bg-blue-600', btn.dataset.tab === tab);
-        btn.classList.toggle('bg-gray-800', btn.dataset.tab !== tab);
+        const isActive = btn.dataset.tab === tab;
+        btn.className = isActive
+          ? 'tab-btn px-6 py-3 rounded-xl font-medium transition bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg'
+          : 'tab-btn px-6 py-3 rounded-xl font-medium transition glass-light hover:bg-gray-700';
       });
       log(`Tab: ${tab}`);
     }
@@ -158,12 +547,11 @@
       hide('empty');
       hide('results');
       show('loading');
-      log(`Searching "${query}" on ${currentTab}`);
 
       let url;
-      if (currentTab === 'tiktok') url = `/api/tiktok/search?q=${encodeURIComponent(query)}`;
-      if (currentTab === 'shop') url = `/api/tiktok/shop?q=${encodeURIComponent(query)}`;
-      if (currentTab === 'instagram') url = `/api/instagram/reels?q=${encodeURIComponent(query)}`;
+      if (state.currentTab === 'tiktok') url = `/api/tiktok/search?q=${encodeURIComponent(query)}`;
+      if (state.currentTab === 'shop') url = `/api/tiktok/shop?q=${encodeURIComponent(query)}`;
+      if (state.currentTab === 'instagram') url = `/api/instagram/reels?q=${encodeURIComponent(query)}`;
 
       try {
         const res = await fetch(url);
@@ -171,84 +559,323 @@
         hide('loading');
 
         if (!json.success) {
-          document.getElementById('error').textContent = json.error;
+          document.getElementById('errorText').textContent = json.error;
           show('error');
           return;
         }
 
         // Update credits
         if (json.data?.credits_remaining) {
-          document.getElementById('credits').textContent = `Credits: ${json.data.credits_remaining}`;
+          document.getElementById('credits').textContent = formatNum(json.data.credits_remaining);
         }
 
-        renderResults(json.data);
+        // Update stats
+        state.stats.searches = (state.stats.searches || 0) + 1;
+        localStorage.setItem('stats', JSON.stringify(state.stats));
+
+        processResults(json.data);
       } catch (e) {
         hide('loading');
-        document.getElementById('error').textContent = e.message;
+        document.getElementById('errorText').textContent = e.message;
         show('error');
-        log(`Error: ${e.message}`);
       }
     }
 
-    // Render results
-    function renderResults(data) {
-      log('Data keys: ' + Object.keys(data).join(', '));
-
-      // Get items array from various possible locations
+    function processResults(data) {
       let items = data.search_item_list || data.products || data.reels || data.data || [];
 
-      // Extract aweme_info if present
       if (items[0]?.aweme_info) {
         items = items.map(i => i.aweme_info);
       }
 
-      log(`Rendering ${items.length} items`);
+      state.allResults = items.map(item => ({
+        title: item.desc || item.title || item.product_name || 'No title',
+        image: item.video?.cover?.url_list?.[0] ||
+               item.video?.origin_cover?.url_list?.[0] ||
+               item.cover || item.image?.url_list?.[0] ||
+               item.product_img_url || '',
+        views: item.statistics?.play_count || 0,
+        likes: item.statistics?.digg_count || 0,
+        comments: item.statistics?.comment_count || 0,
+        shares: item.statistics?.share_count || 0,
+        author: item.author?.nickname || item.author?.unique_id || '',
+        sold: item.sold_count || item.sales || 0,
+        price: item.price ? (item.price / 100) : (item.min_price ? parseFloat(item.min_price) : 0),
+        engagement: item.statistics?.play_count > 0
+          ? ((item.statistics?.digg_count || 0) / item.statistics?.play_count * 100).toFixed(2)
+          : 0,
+        rawData: item
+      }));
 
-      if (items.length === 0) {
+      // Update stats
+      state.stats.totalViews = (state.stats.totalViews || 0) + state.allResults.reduce((sum, r) => sum + r.views, 0);
+      state.stats.totalLikes = (state.stats.totalLikes || 0) + state.allResults.reduce((sum, r) => sum + r.likes, 0);
+      state.stats[`${state.currentTab}Views`] = (state.stats[`${state.currentTab}Views`] || 0) + state.allResults.reduce((sum, r) => sum + r.views, 0);
+      localStorage.setItem('stats', JSON.stringify(state.stats));
+
+      applyFilters();
+    }
+
+    // Filters
+    function applyFilters() {
+      let results = [...state.allResults];
+
+      // Min views filter
+      const minViews = parseInt(document.getElementById('minViews').value) || 0;
+      if (minViews > 0) {
+        results = results.filter(r => r.views >= minViews);
+      }
+
+      // Max price filter
+      const maxPrice = parseFloat(document.getElementById('maxPrice').value);
+      if (!isNaN(maxPrice) && maxPrice > 0) {
+        results = results.filter(r => r.price === 0 || r.price <= maxPrice);
+      }
+
+      // Sorting
+      const sortBy = document.getElementById('sortBy').value;
+      switch(sortBy) {
+        case 'views-desc':
+          results.sort((a, b) => b.views - a.views);
+          break;
+        case 'views-asc':
+          results.sort((a, b) => a.views - b.views);
+          break;
+        case 'likes-desc':
+          results.sort((a, b) => b.likes - a.likes);
+          break;
+        case 'engagement-desc':
+          results.sort((a, b) => parseFloat(b.engagement) - parseFloat(a.engagement));
+          break;
+        case 'price-desc':
+          results.sort((a, b) => b.price - a.price);
+          break;
+        case 'price-asc':
+          results.sort((a, b) => a.price - b.price);
+          break;
+      }
+
+      state.filteredResults = results;
+      renderResults();
+    }
+
+    function clearFilters() {
+      document.getElementById('sortBy').value = 'default';
+      document.getElementById('minViews').value = '';
+      document.getElementById('maxPrice').value = '';
+      applyFilters();
+    }
+
+    // Render Results
+    function renderResults() {
+      const results = state.filteredResults;
+      document.getElementById('resultCount').textContent = results.length;
+
+      if (results.length === 0) {
         show('empty');
         return;
       }
 
       const container = document.getElementById('results');
-      container.innerHTML = items.slice(0, 24).map(item => {
-        // Handle different data structures
-        const title = item.desc || item.title || item.product_name || 'No title';
-        const image = item.video?.cover?.url_list?.[0] ||
-                      item.video?.origin_cover?.url_list?.[0] ||
-                      item.cover ||
-                      item.image?.url_list?.[0] ||
-                      item.product_img_url || '';
-        const views = item.statistics?.play_count || 0;
-        const likes = item.statistics?.digg_count || 0;
-        const author = item.author?.nickname || item.author?.unique_id || '';
-        const sold = item.sold_count || item.sales || 0;
-        const price = item.price ? `$${(item.price / 100).toFixed(2)}` :
-                      item.min_price ? `$${item.min_price}` : '';
+      container.innerHTML = results.map((item, idx) => `
+        <div class="glass rounded-2xl overflow-hidden card-hover cursor-pointer" onclick="showDetail(${idx})">
+          ${item.image
+            ? `<img src="${item.image}" class="w-full h-48 object-cover" onerror="this.parentElement.innerHTML='<div class=\\'h-48 bg-gray-700 flex items-center justify-center text-gray-500\\'>No image</div>'+this.parentElement.innerHTML.split('</img>')[1]">`
+            : '<div class="h-48 bg-gray-700 flex items-center justify-center text-gray-500">No image</div>'
+          }
+          <div class="p-4">
+            <p class="text-sm line-clamp-2 mb-3 font-medium">${escapeHtml(item.title.substring(0, 100))}</p>
 
-        return `
-          <div class="bg-gray-800 rounded-xl overflow-hidden hover:bg-gray-750 transition">
-            ${image ?
-              `<img src="${image}" class="w-full h-40 object-cover" onerror="this.parentElement.innerHTML='<div class=\\'h-40 bg-gray-700 flex items-center justify-center text-gray-500\\'>No image</div>'+this.parentElement.innerHTML.split('</img>')[1]">` :
-              '<div class="h-40 bg-gray-700 flex items-center justify-center text-gray-500">No image</div>'
-            }
-            <div class="p-3">
-              <p class="text-sm line-clamp-2 mb-2">${escapeHtml(title.substring(0, 100))}</p>
-              ${author ? `<p class="text-xs text-gray-500 mb-2">@${escapeHtml(author)}</p>` : ''}
-              <div class="flex justify-between text-xs text-gray-400">
-                ${views ? `<span>▶️ ${formatNum(views)}</span>` : ''}
-                ${likes ? `<span>❤️ ${formatNum(likes)}</span>` : ''}
-                ${sold ? `<span>🔥 ${formatNum(sold)} sold</span>` : ''}
-                ${price ? `<span class="text-green-400 font-bold">${price}</span>` : ''}
-              </div>
+            ${item.author ? `<p class="text-xs text-gray-400 mb-3">👤 ${escapeHtml(item.author)}</p>` : ''}
+
+            <div class="flex gap-2 mb-3 flex-wrap">
+              ${item.views ? `<span class="badge bg-blue-500/20 text-blue-300">▶️ ${formatNum(item.views)}</span>` : ''}
+              ${item.likes ? `<span class="badge bg-red-500/20 text-red-300">❤️ ${formatNum(item.likes)}</span>` : ''}
+              ${item.engagement > 0 ? `<span class="badge bg-green-500/20 text-green-300">📊 ${item.engagement}%</span>` : ''}
             </div>
+
+            <div class="flex justify-between items-center">
+              ${item.sold ? `<span class="text-xs text-orange-400">🔥 ${formatNum(item.sold)} sold</span>` : '<span></span>'}
+              ${item.price ? `<span class="text-green-400 font-bold">$${item.price.toFixed(2)}</span>` : ''}
+            </div>
+
+            ${state.comparisonMode ? `
+              <button onclick="event.stopPropagation(); toggleCompare(${idx})" class="w-full mt-3 glass-light hover:bg-blue-600 py-2 rounded-lg text-sm transition">
+                ${state.comparisonItems.includes(idx) ? '✓ Added' : '+ Compare'}
+              </button>
+            ` : ''}
           </div>
-        `;
-      }).join('');
+        </div>
+      `).join('');
 
       show('results');
     }
 
-    // Helpers
+    // Detail View
+    function showDetail(idx) {
+      if (state.comparisonMode) return;
+
+      const item = state.filteredResults[idx];
+      document.getElementById('detailContent').innerHTML = `
+        <div class="flex justify-between items-start mb-6">
+          <h2 class="text-2xl font-bold flex-1">${escapeHtml(item.title)}</h2>
+          <button onclick="hide('detailModal')" class="text-3xl hover:text-gray-400 ml-4">&times;</button>
+        </div>
+
+        ${item.image ? `<img src="${item.image}" class="w-full h-64 object-cover rounded-xl mb-6">` : ''}
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div class="glass-light rounded-xl p-4 text-center">
+            <div class="text-2xl mb-1">▶️</div>
+            <div class="text-2xl font-bold text-blue-400">${formatNum(item.views)}</div>
+            <div class="text-xs text-gray-400">Views</div>
+          </div>
+          <div class="glass-light rounded-xl p-4 text-center">
+            <div class="text-2xl mb-1">❤️</div>
+            <div class="text-2xl font-bold text-red-400">${formatNum(item.likes)}</div>
+            <div class="text-xs text-gray-400">Likes</div>
+          </div>
+          <div class="glass-light rounded-xl p-4 text-center">
+            <div class="text-2xl mb-1">💬</div>
+            <div class="text-2xl font-bold text-purple-400">${formatNum(item.comments)}</div>
+            <div class="text-xs text-gray-400">Comments</div>
+          </div>
+          <div class="glass-light rounded-xl p-4 text-center">
+            <div class="text-2xl mb-1">📊</div>
+            <div class="text-2xl font-bold text-green-400">${item.engagement}%</div>
+            <div class="text-xs text-gray-400">Engagement</div>
+          </div>
+        </div>
+
+        ${item.author ? `
+          <div class="glass-light rounded-xl p-4 mb-4">
+            <div class="text-sm text-gray-400 mb-1">Creator</div>
+            <div class="font-medium">👤 ${escapeHtml(item.author)}</div>
+          </div>
+        ` : ''}
+
+        ${item.price ? `
+          <div class="glass-light rounded-xl p-4 mb-4">
+            <div class="text-sm text-gray-400 mb-1">Price</div>
+            <div class="text-3xl font-bold text-green-400">$${item.price.toFixed(2)}</div>
+            ${item.sold ? `<div class="text-sm text-orange-400 mt-2">🔥 ${formatNum(item.sold)} sold</div>` : ''}
+          </div>
+        ` : ''}
+      `;
+      show('detailModal');
+    }
+
+    // Comparison Mode
+    function toggleComparison() {
+      state.comparisonMode = !state.comparisonMode;
+      document.getElementById('compareBtnText').textContent = state.comparisonMode ? 'Exit Compare' : 'Compare Mode';
+      document.getElementById('compareBtn').classList.toggle('bg-blue-600', state.comparisonMode);
+
+      if (!state.comparisonMode) {
+        state.comparisonItems = [];
+        hide('comparisonPanel');
+      }
+
+      renderResults();
+    }
+
+    function toggleCompare(idx) {
+      const index = state.comparisonItems.indexOf(idx);
+      if (index > -1) {
+        state.comparisonItems.splice(index, 1);
+      } else {
+        if (state.comparisonItems.length >= 4) {
+          showNotification('Maximum 4 items for comparison');
+          return;
+        }
+        state.comparisonItems.push(idx);
+      }
+
+      renderResults();
+      updateComparison();
+    }
+
+    function updateComparison() {
+      if (state.comparisonItems.length === 0) {
+        hide('comparisonPanel');
+        return;
+      }
+
+      show('comparisonPanel');
+      const grid = document.getElementById('comparisonGrid');
+      grid.innerHTML = state.comparisonItems.map(idx => {
+        const item = state.filteredResults[idx];
+        return `
+          <div class="glass-light rounded-xl p-4">
+            <div class="flex justify-between items-start mb-3">
+              <h3 class="text-sm font-medium line-clamp-1 flex-1">${escapeHtml(item.title)}</h3>
+              <button onclick="toggleCompare(${idx})" class="text-red-400 hover:text-red-300 ml-2">&times;</button>
+            </div>
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-gray-400">Views:</span>
+                <span class="font-medium">${formatNum(item.views)}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-400">Likes:</span>
+                <span class="font-medium">${formatNum(item.likes)}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-400">Engagement:</span>
+                <span class="font-medium">${item.engagement}%</span>
+              </div>
+              ${item.price ? `
+                <div class="flex justify-between">
+                  <span class="text-gray-400">Price:</span>
+                  <span class="font-medium text-green-400">$${item.price.toFixed(2)}</span>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function clearComparison() {
+      state.comparisonItems = [];
+      updateComparison();
+      renderResults();
+    }
+
+    // Export
+    function exportResults() {
+      if (state.filteredResults.length === 0) {
+        showNotification('No results to export');
+        return;
+      }
+
+      const csv = [
+        ['Title', 'Author', 'Views', 'Likes', 'Comments', 'Shares', 'Engagement %', 'Price', 'Sold'].join(','),
+        ...state.filteredResults.map(item => [
+          `"${item.title.replace(/"/g, '""')}"`,
+          `"${item.author.replace(/"/g, '""')}"`,
+          item.views,
+          item.likes,
+          item.comments,
+          item.shares,
+          item.engagement,
+          item.price,
+          item.sold
+        ].join(','))
+      ].join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `product-trends-${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      showNotification('Exported successfully!');
+    }
+
+    // Utilities
     function formatNum(n) {
       if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
       if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
@@ -259,9 +886,17 @@
       return str.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
+    function showNotification(msg) {
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 glass px-6 py-3 rounded-xl shadow-lg z-50 animate-slide-in';
+      notification.textContent = msg;
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), 3000);
+    }
+
     // Init
     loadConfig();
-    log('App loaded');
+    log('Product Trends Pro loaded');
   </script>
 </body>
 </html>
