@@ -189,6 +189,13 @@
             For AI analysis - get key at <a href="https://platform.openai.com/api-keys" target="_blank" class="text-purple-400 hover:text-purple-300">platform.openai.com</a>
           </p>
         </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2 font-medium">Google Gemini API Key (Optional)</label>
+          <input type="text" id="geminiKey" class="w-full glass-light px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="AI...">
+          <p class="text-xs text-gray-500 mt-2">
+            For content generation - get key at <a href="https://makersuite.google.com/app/apikey" target="_blank" class="text-green-400 hover:text-green-300">makersuite.google.com</a>
+          </p>
+        </div>
         <div id="testResult"></div>
         <div class="flex gap-3">
           <button onclick="saveKeys()" class="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 py-3 rounded-xl font-medium transition">
@@ -232,6 +239,7 @@
         const data = await res.json();
         document.getElementById('apiKey').value = data.apiKey || '';
         document.getElementById('openaiKey').value = data.openaiKey || '';
+        document.getElementById('geminiKey').value = data.geminiKey || '';
         if (data.hasKey) console.log('API key loaded');
       } catch (e) {
         console.error('Config load failed:', e.message);
@@ -241,12 +249,13 @@
     async function saveKeys() {
       const apiKey = document.getElementById('apiKey').value;
       const openaiKey = document.getElementById('openaiKey').value;
+      const geminiKey = document.getElementById('geminiKey').value;
 
       try {
         await fetch('/api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey, openaiKey })
+          body: JSON.stringify({ apiKey, openaiKey, geminiKey })
         });
 
         showNotification('Settings saved successfully!');
@@ -482,7 +491,7 @@
         </div>
 
         <!-- Engagement Stats -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div class="glass-light rounded-xl p-4 text-center">
             <div class="text-2xl mb-1">▶️</div>
             <div class="text-2xl font-bold text-blue-400">${formatNum(product.views)}</div>
@@ -504,8 +513,132 @@
             <div class="text-xs text-gray-400">Sold</div>
           </div>
         </div>
+
+        <!-- Content Generation -->
+        <div class="glass-light rounded-xl p-6">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold">🎨 Marketing Content Generator</h3>
+            <button onclick="generateContent(${idx})" id="genBtn${idx}" class="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 px-6 py-2 rounded-lg font-medium transition text-sm">
+              ✨ Generate Prompts
+            </button>
+          </div>
+          <div id="contentGen${idx}" class="hidden space-y-4">
+            <!-- Image Prompts -->
+            <div>
+              <h4 class="font-bold text-sm text-gray-300 mb-2">📸 Image Generation Prompts (Google Imagen)</h4>
+              <div id="imagePrompts${idx}" class="space-y-2"></div>
+            </div>
+            <!-- Video Prompts -->
+            <div>
+              <h4 class="font-bold text-sm text-gray-300 mb-2">🎥 Video Generation Prompts (Google Veo)</h4>
+              <div id="videoPrompts${idx}" class="space-y-2"></div>
+            </div>
+            <!-- Social Captions -->
+            <div>
+              <h4 class="font-bold text-sm text-gray-300 mb-2">💬 Social Media Captions</h4>
+              <div id="socialCaptions${idx}" class="space-y-2"></div>
+            </div>
+          </div>
+        </div>
       `;
       show('detailModal');
+    }
+
+    // Generate Marketing Content
+    async function generateContent(idx) {
+      const product = state.allProducts[idx];
+      const btn = document.getElementById(`genBtn${idx}`);
+      const contentDiv = document.getElementById(`contentGen${idx}`);
+
+      // Update button state
+      btn.textContent = '⏳ Generating...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/generate-content-prompts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product })
+        });
+
+        const data = await res.json();
+
+        if (!data.success) {
+          showNotification('Failed to generate content: ' + (data.error || 'Unknown error'));
+          btn.textContent = '✨ Generate Prompts';
+          btn.disabled = false;
+          return;
+        }
+
+        const prompts = data.prompts;
+
+        // Render Image Prompts
+        document.getElementById(`imagePrompts${idx}`).innerHTML = prompts.imagePrompts.map((prompt, i) => `
+          <div class="bg-gray-900/50 rounded-lg p-3">
+            <div class="flex justify-between items-start mb-2">
+              <span class="text-xs font-bold text-green-400">Image ${i + 1}</span>
+              <button onclick="copyToClipboard('${escapeHtml(prompt).replace(/'/g, "\\'")}', this)" class="text-xs text-blue-400 hover:text-blue-300">
+                📋 Copy
+              </button>
+            </div>
+            <p class="text-sm text-gray-300">${escapeHtml(prompt)}</p>
+          </div>
+        `).join('');
+
+        // Render Video Prompts
+        document.getElementById(`videoPrompts${idx}`).innerHTML = prompts.videoPrompts.map((prompt, i) => `
+          <div class="bg-gray-900/50 rounded-lg p-3">
+            <div class="flex justify-between items-start mb-2">
+              <span class="text-xs font-bold text-purple-400">Video ${i + 1}</span>
+              <button onclick="copyToClipboard('${escapeHtml(prompt).replace(/'/g, "\\'")}', this)" class="text-xs text-blue-400 hover:text-blue-300">
+                📋 Copy
+              </button>
+            </div>
+            <p class="text-sm text-gray-300">${escapeHtml(prompt)}</p>
+          </div>
+        `).join('');
+
+        // Render Social Captions
+        document.getElementById(`socialCaptions${idx}`).innerHTML = prompts.socialCaptions.map((caption, i) => `
+          <div class="bg-gray-900/50 rounded-lg p-3">
+            <div class="flex justify-between items-start mb-2">
+              <span class="text-xs font-bold text-pink-400">Caption ${i + 1}</span>
+              <button onclick="copyToClipboard('${escapeHtml(caption).replace(/'/g, "\\'")}', this)" class="text-xs text-blue-400 hover:text-blue-300">
+                📋 Copy
+              </button>
+            </div>
+            <p class="text-sm text-gray-300">${escapeHtml(caption)}</p>
+          </div>
+        `).join('');
+
+        // Show content and update button
+        contentDiv.classList.remove('hidden');
+        btn.textContent = '✅ Generated!';
+
+        const generatedBy = data.generatedBy === 'gemini' ? ' (Powered by Gemini)' : ' (Default Templates)';
+        showNotification('Content generated successfully!' + generatedBy);
+
+      } catch (e) {
+        console.error('Content generation error:', e);
+        showNotification('Error generating content: ' + e.message);
+        btn.textContent = '✨ Generate Prompts';
+        btn.disabled = false;
+      }
+    }
+
+    function copyToClipboard(text, button) {
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = button.textContent;
+        button.textContent = '✅ Copied!';
+        button.classList.add('text-green-400');
+        setTimeout(() => {
+          button.textContent = originalText;
+          button.classList.remove('text-green-400');
+          button.classList.add('text-blue-400');
+        }, 2000);
+      }).catch(err => {
+        showNotification('Failed to copy to clipboard');
+      });
     }
 
     // Utilities

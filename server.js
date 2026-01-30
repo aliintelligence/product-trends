@@ -3,6 +3,7 @@ const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
 const OpenAI = require('openai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -48,6 +49,19 @@ function getOpenAI() {
     }
   }
   return openai;
+}
+
+// Initialize Google Gemini
+let genAI = null;
+
+function getGemini() {
+  if (!genAI) {
+    const config = loadConfig();
+    if (config.geminiKey) {
+      genAI = new GoogleGenerativeAI(config.geminiKey);
+    }
+  }
+  return genAI;
 }
 
 // Trending product categories to search (US/UK focused)
@@ -191,7 +205,9 @@ app.get('/api/config', (req, res) => {
     hasKey: !!config.apiKey,
     apiKey: config.apiKey || '',
     hasOpenAIKey: !!config.openaiKey,
-    openaiKey: config.openaiKey || ''
+    openaiKey: config.openaiKey || '',
+    hasGeminiKey: !!config.geminiKey,
+    geminiKey: config.geminiKey || ''
   });
 });
 
@@ -201,6 +217,10 @@ app.post('/api/config', (req, res) => {
   if (req.body.openaiKey !== undefined) {
     config.openaiKey = req.body.openaiKey;
     openai = null; // Reset OpenAI instance
+  }
+  if (req.body.geminiKey !== undefined) {
+    config.geminiKey = req.body.geminiKey;
+    genAI = null; // Reset Gemini instance
   }
   saveConfig(config);
   console.log('✅ Config saved');
@@ -472,6 +492,179 @@ app.post('/api/analyze-product', async (req, res) => {
     });
 
   } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
+// ================== CONTENT GENERATION ==================
+
+// Get product images from AliExpress or Google
+app.post('/api/get-product-images', async (req, res) => {
+  try {
+    const { productName, productImage } = req.body;
+
+    if (!productName) {
+      return res.json({ success: false, error: 'Product name required' });
+    }
+
+    // Use the existing product image as primary
+    const images = [];
+
+    if (productImage) {
+      images.push({
+        url: productImage,
+        source: 'TikTok Shop',
+        type: 'product'
+      });
+    }
+
+    // Generate AliExpress search URL for additional images
+    const aliExpressSearchUrl = `https://www.aliexpress.com/wholesale?SearchText=${encodeURIComponent(productName)}`;
+
+    res.json({
+      success: true,
+      images,
+      searchUrls: {
+        aliexpress: aliExpressSearchUrl,
+        google: `https://www.google.com/search?q=${encodeURIComponent(productName)}&tbm=isch`
+      }
+    });
+
+  } catch (e) {
+    console.error('❌ Image fetch error:', e.message);
+    res.json({ success: false, error: e.message });
+  }
+});
+
+// Generate marketing prompts for Gemini
+app.post('/api/generate-content-prompts', async (req, res) => {
+  try {
+    const { product } = req.body;
+
+    if (!product || !product.title) {
+      return res.json({ success: false, error: 'Invalid product data' });
+    }
+
+    const gemini = getGemini();
+
+    if (!gemini) {
+      // Return basic prompts without AI
+      return res.json({
+        success: true,
+        prompts: {
+          imagePrompts: [
+            `Professional product photography of ${product.title} on white background, studio lighting, high quality, commercial photography`,
+            `${product.title} in lifestyle setting, natural lighting, Instagram aesthetic, trendy background`,
+            `Creative flat lay composition featuring ${product.title}, minimalist style, pastel colors, top-down view`
+          ],
+          videoPrompts: [
+            `15-second product showcase of ${product.title}, smooth rotation, professional lighting, modern aesthetic`,
+            `TikTok-style video showing ${product.title} in use, dynamic angles, energetic vibe, trending music`,
+            `Unboxing video for ${product.title}, ASMR style, close-up shots, satisfying reveal`
+          ],
+          socialCaptions: [
+            `🔥 Just found the perfect ${product.category || 'product'}! ${product.title} is trending right now. Link in bio! #trending #musthave`,
+            `This ${product.title} is a game changer! 😍 Can't believe the quality for the price. Who else needs this? #productreview #viral`,
+            `POV: You discover the ${product.title} everyone's talking about ✨ #fyp #trending #shopsmall`
+          ]
+        },
+        generatedBy: 'default'
+      });
+    }
+
+    try {
+      const model = gemini.getGenerativeModel({ model: 'gemini-pro' });
+
+      const prompt = `Generate marketing content prompts for this product:
+Product: ${product.title}
+Category: ${product.category || 'general'}
+Price: $${product.price}
+Trend: ${product.trend || 'Rising'}
+AI Score: ${product.aiScore || 'N/A'}/100
+
+Generate:
+1. Three detailed image generation prompts for Google Imagen (focus on product photography, lifestyle shots, and creative compositions)
+2. Three detailed video generation prompts for Google Veo (focus on TikTok/Instagram Reels style, 15-30 second clips)
+3. Three engaging social media captions for TikTok/Instagram
+
+Return as JSON:
+{
+  "imagePrompts": ["prompt1", "prompt2", "prompt3"],
+  "videoPrompts": ["prompt1", "prompt2", "prompt3"],
+  "socialCaptions": ["caption1", "caption2", "caption3"]
+}`;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      // Try to parse JSON from response
+      let prompts;
+      try {
+        // Extract JSON from markdown code blocks if present
+        const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/```\n([\s\S]*?)\n```/);
+        if (jsonMatch) {
+          prompts = JSON.parse(jsonMatch[1]);
+        } else {
+          prompts = JSON.parse(text);
+        }
+      } catch (parseError) {
+        console.error('Failed to parse Gemini response as JSON:', text);
+        // Return default prompts if parsing fails
+        prompts = {
+          imagePrompts: [
+            `Professional product photography of ${product.title} on white background, studio lighting, high quality, commercial photography`,
+            `${product.title} in lifestyle setting, natural lighting, Instagram aesthetic, trendy background`,
+            `Creative flat lay composition featuring ${product.title}, minimalist style, pastel colors, top-down view`
+          ],
+          videoPrompts: [
+            `15-second product showcase of ${product.title}, smooth rotation, professional lighting, modern aesthetic`,
+            `TikTok-style video showing ${product.title} in use, dynamic angles, energetic vibe, trending music`,
+            `Unboxing video for ${product.title}, ASMR style, close-up shots, satisfying reveal`
+          ],
+          socialCaptions: [
+            `🔥 Just found the perfect ${product.category || 'product'}! ${product.title} is trending right now. #trending #musthave`,
+            `This ${product.title} is a game changer! 😍 #productreview #viral`,
+            `POV: You discover the ${product.title} everyone's talking about ✨ #fyp #trending`
+          ]
+        };
+      }
+
+      res.json({
+        success: true,
+        prompts,
+        generatedBy: 'gemini'
+      });
+
+    } catch (aiError) {
+      console.error('❌ Gemini API error:', aiError.message);
+      // Return basic prompts on error
+      res.json({
+        success: true,
+        prompts: {
+          imagePrompts: [
+            `Professional product photography of ${product.title} on white background, studio lighting, high quality, commercial photography`,
+            `${product.title} in lifestyle setting, natural lighting, Instagram aesthetic, trendy background`,
+            `Creative flat lay composition featuring ${product.title}, minimalist style, pastel colors, top-down view`
+          ],
+          videoPrompts: [
+            `15-second product showcase of ${product.title}, smooth rotation, professional lighting, modern aesthetic`,
+            `TikTok-style video showing ${product.title} in use, dynamic angles, energetic vibe, trending music`,
+            `Unboxing video for ${product.title}, ASMR style, close-up shots, satisfying reveal`
+          ],
+          socialCaptions: [
+            `🔥 Just found the perfect ${product.category || 'product'}! ${product.title} is trending right now. Link in bio! #trending #musthave`,
+            `This ${product.title} is a game changer! 😍 Can't believe the quality for the price. #productreview #viral`,
+            `POV: You discover the ${product.title} everyone's talking about ✨ #fyp #trending`
+          ]
+        },
+        generatedBy: 'default',
+        error: aiError.message
+      });
+    }
+
+  } catch (e) {
+    console.error('❌ Content generation error:', e.message);
     res.json({ success: false, error: e.message });
   }
 });
