@@ -50,12 +50,23 @@ function getOpenAI() {
   return openai;
 }
 
-// Trending product categories to search
+// Trending product categories to search (US/UK focused)
 const TRENDING_CATEGORIES = [
-  'viral gadgets', 'beauty products', 'home decor', 'fitness gear',
-  'tech accessories', 'kitchen tools', 'pet products', 'fashion accessories',
-  'phone accessories', 'car accessories', 'gaming gear', 'smart home'
+  'viral gadgets', 'beauty products', 'home decor', 'fitness equipment',
+  'tech accessories', 'kitchen gadgets', 'pet supplies', 'fashion accessories',
+  'phone cases', 'car accessories', 'gaming accessories', 'smart home devices',
+  'makeup', 'skincare', 'jewelry', 'workout gear', 'led lights', 'desk accessories'
 ];
+
+// Check if text is primarily English
+function isEnglish(text) {
+  if (!text) return false;
+  // Count English characters vs total characters
+  const englishChars = text.match(/[a-zA-Z]/g) || [];
+  const totalChars = text.replace(/\s/g, '').length;
+  // Require at least 50% English characters
+  return totalChars > 0 && (englishChars.length / totalChars) >= 0.5;
+}
 
 // Calculate profit margins
 function calculateMargins(tiktokPrice) {
@@ -293,7 +304,10 @@ app.get('/api/recommendations', async (req, res) => {
 
     for (const category of selectedCategories) {
       try {
-        const data = await scrapecreators('/v1/tiktok/shop/search', { query: category });
+        const data = await scrapecreators('/v1/tiktok/shop/search', {
+          query: category,
+          region: 'US' // Target US market
+        });
         const items = data.products || data.data || [];
 
         // Debug: Log first item structure
@@ -314,14 +328,17 @@ app.get('/api/recommendations', async (req, res) => {
                            item.product_price_info.min_price ||
                            item.product_price_info.price || '0';
 
-            // Remove formatting (dots/commas) and convert to number
-            const priceNum = parseFloat(priceStr.replace(/[.,]/g, ''));
-
-            // Convert from VND to USD (approximate: 1 USD = 25,000 VND)
+            // Handle different currency formats
             if (item.product_price_info.currency_name === 'VND') {
+              // Vietnamese Dong - remove dots and convert to USD
+              const priceNum = parseFloat(priceStr.replace(/\./g, ''));
               price = priceNum / 25000;
+            } else if (item.product_price_info.currency_name === 'USD' || item.product_price_info.currency_symbol === '$') {
+              // USD - remove commas if any
+              price = parseFloat(priceStr.replace(/,/g, ''));
             } else {
-              price = priceNum;
+              // Other currencies - try to parse as-is
+              price = parseFloat(priceStr.replace(/[^0-9.]/g, ''));
             }
           } else if (item.price) {
             price = item.price / 100;
@@ -352,11 +369,17 @@ app.get('/api/recommendations', async (req, res) => {
           };
         });
 
-        allProducts.push(...processed);
+        // Filter for English products only
+        const englishProducts = processed.filter(p => isEnglish(p.title));
+        console.log(`🌍 ${englishProducts.length}/${processed.length} English products for ${category}`);
+
+        allProducts.push(...englishProducts);
       } catch (e) {
         console.error(`Failed to fetch ${category}:`, e.message);
       }
     }
+
+    console.log(`✅ Total products (all categories): ${allProducts.length}`);
 
     if (allProducts.length === 0) {
       return res.json({
