@@ -1853,6 +1853,19 @@ app.post('/api/products/auto-route', async (req, res) => {
 
     const bestMatch = matches[0];
 
+    // Confidence floor: never auto-add a product to a store on a weak niche match.
+    const MIN_ROUTE_CONFIDENCE = req.body.minConfidence || 70;
+    if (autoAdd && (bestMatch.confidence || 0) < MIN_ROUTE_CONFIDENCE) {
+      return res.json({
+        success: true,
+        bestMatch,
+        allMatches: matches.slice(0, 5),
+        productAdded: false,
+        held: true,
+        reason: `Best match confidence ${bestMatch.confidence}% is below the ${MIN_ROUTE_CONFIDENCE}% floor — not auto-added`
+      });
+    }
+
     // If autoAdd is true, add the product to the best matching store
     if (autoAdd) {
       const store = storesData.stores[bestMatch.storeId];
@@ -8558,6 +8571,14 @@ async function runAutopilot() {
   if (!state.enabled) {
     console.log('[Autopilot] Disabled, skipping run');
     return { success: false, reason: 'disabled' };
+  }
+
+  // Honor the global autonomy kill-switch — 'suggest'/'off' (or AUTONOMY_DISABLED=1)
+  // must stop autonomous publishing, not just the legacy enabled flag.
+  const autonomy = getAutonomyMode();
+  if (autonomy !== 'full') {
+    console.log(`[Autopilot] Autonomy is '${autonomy}' — not publishing products`);
+    return { success: false, reason: `autonomy_${autonomy}` };
   }
 
   // Reset daily count if new day
