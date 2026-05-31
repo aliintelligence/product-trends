@@ -1,5 +1,20 @@
 node_modules/
 config.json
 .env
+.env.*
 .DS_Store
 *.log
+
+# Local state / data files (contain tokens, customer + order data — never commit)
+stores.json
+orders.json
+product_memory.json
+product_history.json
+autopilot_state.json
+autopilot_logs.json
+scheduler_state.json
+actions_log.json
+alerts_log.json
+
+# Shopify CLI app artifacts
+.shopify/
